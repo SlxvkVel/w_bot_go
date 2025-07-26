@@ -13,12 +13,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	tele "gopkg.in/telebot.v3"
 )
-
 var (
 	db          *sql.DB
 	weatherAPI  string
 )
-
 type WeatherData struct {
 	Main struct {
 		Temp      float64 `json:"temp"`
@@ -36,23 +34,17 @@ type WeatherData struct {
 		All int `json:"all"`
 	} `json:"clouds"`
 }
-
 func init() {
-	// Загрузка переменных окружения
 	err := godotenv.Load("tokens.env")
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
 	weatherAPI = os.Getenv("token_weather")
-
-	// Инициализация базы данных
 	db, err = sql.Open("sqlite3", "cities.db")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Создание таблицы
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS cities (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,14 +56,12 @@ func init() {
 		log.Fatal(err)
 	}
 }
-
 func getWeather(city string) (*WeatherData, error) {
 	url := fmt.Sprintf(
 		"http://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&lang=ru&units=metric",
 		city,
 		weatherAPI,
 	)
-
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -86,15 +76,12 @@ func getWeather(city string) (*WeatherData, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
 	}
-
 	return &data, nil
 }
-
 func saveCity(userID int64, city string) error {
 	_, err := db.Exec("INSERT INTO cities (user_id, city_name) VALUES (?, ?)", userID, city)
 	return err
 }
-
 func getLastCities(userID int64) ([]string, error) {
 	rows, err := db.Query(
 		"SELECT city_name FROM cities WHERE user_id = ? ORDER BY id DESC LIMIT 5",
@@ -113,7 +100,6 @@ func getLastCities(userID int64) ([]string, error) {
 		}
 		cities = append(cities, city)
 	}
-
 	return cities, nil
 }
 
@@ -128,19 +114,16 @@ func uniqueCities(cities []string) []string {
 	}
 	return result
 }
-
 func main() {
 	pref := tele.Settings{
 		Token:  os.Getenv("token_api"),
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
 	}
-
 	b, err := tele.NewBot(pref)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-
 	b.Handle("/start", func(c tele.Context) error {
 		return c.Send("Привет! Введи название города, чтобы получить прогноз погоды.")
 	})
@@ -151,19 +134,15 @@ func main() {
 		if err != nil {
 			return c.Send("Не удалось получить данные о погоде. Проверьте название города.")
 		}
-
 		response := fmt.Sprintf(
 			"Погода в городе %s:\nТемпература: %.1f°C\nСостояние: %s\n",
 			city,
 			weather.Main.Temp,
 			weather.Weather[0].Description,
 		)
-
 		if err := saveCity(c.Sender().ID, city); err != nil {
 			log.Println("Failed to save city:", err)
 		}
-
-		// Создаем inline клавиатуру
 		menu := &tele.ReplyMarkup{}
 		btnCities := menu.Data("Показать последние введенные города", "show_last_cities")
 		btnDetailed := menu.Data("Узнать более подробный прогноз", "detailed_forecast", city)
@@ -172,14 +151,12 @@ func main() {
 			menu.Row(btnCities),
 			menu.Row(btnDetailed),
 		)
-
 		c.Send(response)
 		return c.Send(
 			"Нажмите на кнопку ниже, чтобы увидеть последние введенные города или получить более подробный прогноз:",
 			menu,
 		)
 	})
-
 	b.Handle(tele.OnCallback, func(c tele.Context) error {
 		data := c.Callback().Data
 
@@ -208,7 +185,6 @@ func main() {
 			if err != nil {
 				return c.Send("Не удалось получить данные о погоде для этого города.")
 			}
-
 			response := fmt.Sprintf(
 				"Погода в городе %s:\nТемпература: %.1f°C\nСостояние: %s\nВлажность: %d%%\n",
 				city,
@@ -218,7 +194,6 @@ func main() {
 			)
 
 			return c.Send(response)
-
 		case strings.HasPrefix(data, "detailed_forecast"):
 			city := strings.Split(data, "|")[1]
 			weather, err := getWeather(city)
